@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente Virtual</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Estilos para el modal de la webcam */
+        #webcam-modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        #webcam-modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 60%;
+        }
+
+        #webcam {
+            width: 100%;
+        }
+
+        #countdown {
+            font-size: 24px;
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div id="chat-history" class="chat-history"></div>
+        <input type="file" id="image-upload" accept="image/*" />
+        <input type="text" id="message-input" placeholder="Escribe tu mensaje...">
+        <button onclick="sendMessage()">Enviar</button>
+        <button onclick="openWebcamModal()">Capturar Imagen</button>
+        <input type="text" id="image-url" placeholder="Ingresa la URL de una imagen">
+        <button onclick="sendImageUrl()">Enviar URL</button>
+    </div>
+
+    <!-- Modal de la webcam -->
+    <div id="webcam-modal">
+        <div id="webcam-modal-content">
+            <span onclick="closeWebcamModal()" style="float:right;cursor:pointer;">&times;</span>
+            <video id="webcam" autoplay></video>
+            <div id="countdown"></div>
+            <button onclick="captureImage()">Capturar</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
