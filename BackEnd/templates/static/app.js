@@ -1,3 +1,132 @@
+var wavesurfer;
+var recorder;
+
+function speakText(text, lang = 'es-ES') {
+    if (!wavesurfer) {
+        wavesurfer = WaveSurfer.create({
+            container: '#waveform',
+            waveColor: 'violet',
+            progressColor: 'purple',
+            height: 100,
+            barWidth: 2,
+            cursorWidth: 1,
+            cursorColor: '#333',
+            backend: 'MediaElement'
+        });
+    }
+
+    var synth = window.speechSynthesis;
+    var utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+
+    // Setup recorder
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        recorder = new RecordRTC(stream, {
+            type: 'audio',
+            mimeType: 'audio/wav',
+            recorderType: RecordRTC.StereoAudioRecorder,
+            desiredSampRate: 16000
+        });
+
+        utterance.onstart = function() {
+            recorder.startRecording();
+        };
+
+        utterance.onend = function() {
+            recorder.stopRecording(() => {
+                var blob = recorder.getBlob();
+                var audioURL = URL.createObjectURL(blob);
+                wavesurfer.load(audioURL);
+                document.getElementById('voice-player').style.display = 'block';
+            });
+        };
+
+        synth.speak(utterance);
+    }).catch(error => console.error('Error accessing media devices.', error));
+}
+
+function toggleVoiceMode() {
+    var voiceCheckbox = document.getElementById('voice-checkbox');
+    var recordButton = document.getElementById('record-button');
+    var messageInput = document.getElementById('message-input');
+    if (voiceCheckbox.checked) {
+        recordButton.style.display = 'block';
+        messageInput.style.display = 'none';
+    } else {
+        recordButton.style.display = 'none';
+        messageInput.style.display = 'block';
+    }
+}
+
+function recordVoiceMessage() {
+    var recordButton = document.getElementById('record-button');
+    recordButton.textContent = 'Grabando voz...';
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        recorder = new RecordRTC(stream, {
+            type: 'audio',
+            mimeType: 'audio/wav',
+            recorderType: RecordRTC.StereoAudioRecorder,
+            desiredSampRate: 16000
+        });
+
+        recorder.startRecording();
+
+        setTimeout(() => {
+            recorder.stopRecording(() => {
+                var blob = recorder.getBlob();
+                var formData = new FormData();
+                formData.append('audio', blob, 'voice_message.wav');
+
+                fetch('/transcribe_audio', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Network response was not ok " + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.transcription) {
+                        document.getElementById('message-input').value = data.transcription;
+                        sendMessage();
+                    } else {
+                        displayMessage('Bot', 'Ocurrió un error al transcribir el audio. Por favor, intenta de nuevo.');
+                    }
+                })
+                .catch(error => console.error('Error:', error))
+                .finally(() => {
+                    recordButton.textContent = 'Grabar Mensaje';
+                });
+            });
+        }, 5000);  // Grabar durante 5 segundos
+    }).catch(error => {
+        console.error('Error accessing media devices.', error);
+        recordButton.textContent = 'Grabar Mensaje';
+    });
+}
+
+
+function toggleVoicePlayer() {
+    var voiceCheckbox = document.getElementById('voice-checkbox');
+    var voicePlayer = document.getElementById('voice-player');
+    if (voiceCheckbox.checked) {
+        voicePlayer.style.display = 'block';
+    } else {
+        voicePlayer.style.display = 'none';
+        if (wavesurfer) {
+            wavesurfer.stop();
+        }
+    }
+}
+
+function togglePlay() {
+    if (wavesurfer) {
+        wavesurfer.playPause();
+    }
+}
+
 function openWebcamModal() {
     var modal = document.getElementById('webcam-modal');
     modal.style.display = 'block';
@@ -91,6 +220,11 @@ function captureImage() {
                     console.log("Recommended image URL:", data.recommended_image_url);
                     displayImage('Bot', data.recommended_image_url); // Muestra la miniatura de la imagen recomendada
                 }
+                // Si el checkbox de voz está marcado, reproducir la voz del bot
+                var voiceCheckbox = document.getElementById('voice-checkbox');
+                if (voiceCheckbox.checked) {
+                    speakText(data.response, 'es-ES');
+                }
             } else {
                 displayMessage('Bot', 'Ocurrió un error. Por favor, intenta de nuevo.');
             }
@@ -106,6 +240,56 @@ function captureImage() {
 
     // Limpiar el campo de entrada de mensaje después de enviar el mensaje
     document.getElementById('message-input').value = '';
+}
+
+function sendMessage() {
+    var messageInput = document.getElementById('message-input');
+    var imageUpload = document.getElementById('image-upload');
+
+    var formData = new FormData();
+    formData.append('message', messageInput.value);
+    if (imageUpload.files[0]) {
+        formData.append('image', imageUpload.files[0]);
+    }
+
+    displayMessage('You', messageInput.value); // Muestra el mensaje del usuario inmediatamente
+    if (imageUpload.files[0]) {
+        displayImage('You', URL.createObjectURL(imageUpload.files[0])); // Muestra la miniatura de la imagen subida por el usuario
+    }
+
+    fetch('/chat', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error("Network response was not ok " + response.statusText);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log("Received response:", data);
+        if (data.response) {
+            displayMessage('Bot', data.response);
+            if (data.recommended_image_url) {
+                console.log("Recommended image URL:", data.recommended_image_url);
+                displayImage('Bot', data.recommended_image_url); // Muestra la miniatura de la imagen recomendada
+            }
+            // Si el checkbox de voz está marcado, reproducir la voz del bot
+            var voiceCheckbox = document.getElementById('voice-checkbox');
+            if (voiceCheckbox.checked) {
+                speakText(data.response, 'es-ES');
+            }
+        } else {
+            displayMessage('Bot', 'Ocurrió un error. Por favor, intenta de nuevo.');
+        }
+
+        // Limpiar los campos de entrada después de enviar el mensaje
+        messageInput.value = '';
+        imageUpload.value = '';
+
+    })
+    .catch(error => console.error('Error:', error));
 }
 
 function sendImageUrl() {
@@ -142,6 +326,11 @@ function sendImageUrl() {
                     console.log("Recommended image URL:", data.recommended_image_url);
                     displayImage('Bot', data.recommended_image_url); // Muestra la miniatura de la imagen recomendada
                 }
+                // Si el checkbox de voz está marcado, reproducir la voz del bot
+                var voiceCheckbox = document.getElementById('voice-checkbox');
+                if (voiceCheckbox.checked) {
+                    speakText(data.response, 'es-ES');
+                }
             } else {
                 displayMessage('Bot', 'Ocurrió un error. Por favor, intenta de nuevo.');
             }
@@ -151,52 +340,6 @@ function sendImageUrl() {
             messageInput.value = '';
         })
         .catch(error => console.error('Error:', error));
-}
-
-
-function sendMessage() {
-    var messageInput = document.getElementById('message-input');
-    var imageUpload = document.getElementById('image-upload');
-
-    var formData = new FormData();
-    formData.append('message', messageInput.value);
-    if (imageUpload.files[0]) {
-        formData.append('image', imageUpload.files[0]);
-    }
-
-    displayMessage('You', messageInput.value); // Muestra el mensaje del usuario inmediatamente
-    if (imageUpload.files[0]) {
-        displayImage('You', URL.createObjectURL(imageUpload.files[0])); // Muestra la miniatura de la imagen subida por el usuario
-    }
-
-    fetch('/chat', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error("Network response was not ok " + response.statusText);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log("Received response:", data);
-        if (data.response) {
-            displayMessage('Bot', data.response);
-            if (data.recommended_image_url) {
-                console.log("Recommended image URL:", data.recommended_image_url);
-                displayImage('Bot', data.recommended_image_url); // Muestra la miniatura de la imagen recomendada
-            }
-        } else {
-            displayMessage('Bot', 'Ocurrió un error. Por favor, intenta de nuevo.');
-        }
-
-        // Limpiar los campos de entrada después de enviar el mensaje
-        messageInput.value = '';
-        imageUpload.value = '';
-
-    })
-    .catch(error => console.error('Error:', error));
 }
 
 function displayMessage(sender, message) {

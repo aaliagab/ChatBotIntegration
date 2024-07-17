@@ -37,7 +37,25 @@
             color: red;
             text-align: center;
         }
+
+        /* Estilos para el reproductor de audio */
+        #voice-player {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #waveform {
+            width: 100%;
+            height: 128px;
+        }
+
+        #record-button {
+            display: none;
+            margin-top: 20px;
+        }
     </style>
+    <script src="https://unpkg.com/wavesurfer.js"></script>
+    <script src="https://cdn.webrtc-experiment.com/RecordRTC.js"></script>
 </head>
 <body>
     <div class="chat-container">
@@ -48,6 +66,14 @@
         <button onclick="openWebcamModal()">Capturar Imagen</button>
         <input type="text" id="image-url" placeholder="Ingresa la URL de una imagen">
         <button onclick="sendImageUrl()">Enviar URL</button>
+        <label>
+            <input type="checkbox" id="voice-checkbox" onchange="toggleVoiceMode()"> Voz
+        </label>
+        <button id="record-button" onclick="recordVoiceMessage()">Grabar Mensaje</button>
+        <div id="voice-player">
+            <div id="waveform"></div>
+            <button onclick="togglePlay()">Play/Pause</button>
+        </div>
     </div>
 
     <!-- Modal de la webcam -->

@@ -8,9 +8,12 @@ import os
 from PIL import Image
 from io import BytesIO
 import requests
-
+import uuid
+import whisper
 
 app = Flask(__name__, static_folder='templates/static', template_folder='templates')
+
+model = whisper.load_model("small")
 
 @app.route('/vision_recomendation/productos/<path:filename>')
 def custom_static(filename):
@@ -180,6 +183,23 @@ def process_url():
 
     except Exception as e:
         print(f"Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/transcribe_audio', methods=['POST'])
+def transcribe_audio():
+    try:
+        audio = request.files['audio']
+        audio_path = os.path.join('templates/static', f"{uuid.uuid4()}.wav")
+        audio.save(audio_path)
+
+        result = model.transcribe(audio_path)
+        transcription = result['text']
+
+        os.remove(audio_path)  # Elimina el archivo después de transcribirlo
+
+        return jsonify({'transcription': transcription})
+
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
